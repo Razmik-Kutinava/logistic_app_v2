@@ -20,6 +20,10 @@ class _PhoneScreenState extends State<PhoneScreen> {
         _authorized = true;
         _errorText = null;
       });
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/main');
+      });
     } else {
       setState(() {
         _errorText = 'Неверный номер телефона';

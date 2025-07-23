@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/pin_screen.dart';
 import 'screens/phone_screen.dart';
+import 'screens/main_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -22,6 +23,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/pin': (context) => const PinScreen(),
         '/phone': (context) => const PhoneScreen(),
+        '/main': (context) => const MainScreen(),
       },
     );
   }
