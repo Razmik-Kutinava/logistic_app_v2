@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'pin_screen.dart';
-import 'phone_screen.dart';
+import 'screens/pin_screen.dart';
+import 'screens/phone_screen.dart';
 
 void main() {
   runApp(const MyApp());
