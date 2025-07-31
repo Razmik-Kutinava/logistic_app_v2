@@ -12,74 +12,16 @@ class OrderCard extends StatefulWidget {
 }
 
 class _OrderCardState extends State<OrderCard> {
-  String? deliveryTime;
+  DeliveryType? selectedDeliveryType;
+  DateTime? selectedDateTime;
   String? pin;
-  bool pinConfirmed = false;
   final String testPin = '1234'; // Тестовый PIN-код
 
-  // Метод для выбора времени доставки
-  Future<void> _selectDeliveryTime() async {
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-    if (pickedTime != null) {
-      setState(() {
-        deliveryTime = pickedTime.format(context);
-      });
-    }
-  }
-
-  // Функция для обновления статуса заказа на завершенный
-  void _completeDelivery(String enteredPin) {
-    if (enteredPin == testPin) {
-      setState(() {
-        widget.order.status = OrderStatus.completed;
-      });
-      if (widget.onStatusChanged != null) {
-        widget.onStatusChanged!(OrderStatus.completed);
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Доставка завершена успешно')),
-      );
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Неверный PIN!')));
-    }
-  }
-
-  // Диалоговое окно для ввода PIN
-  Future<void> _showPinDialog() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Введите тестовый PIN для завершения'),
-            content: TextField(
-              controller: controller,
-              decoration: const InputDecoration(hintText: 'PIN-код'),
-              keyboardType: TextInputType.number,
-              style: const TextStyle(fontSize: 22, letterSpacing: 4),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx, controller.text.trim());
-                },
-                child: const Text(
-                  'Подтвердить',
-                  style: TextStyle(fontSize: 18),
-                ),
-              ),
-            ],
-          ),
-    );
-
-    if (result != null && result.isNotEmpty) {
-      _completeDelivery(result); // Проверка PIN и завершение доставки
-    }
+  @override
+  void initState() {
+    super.initState();
+    selectedDeliveryType = widget.order.deliveryType;
+    selectedDateTime = widget.order.deliveryDateTime;
   }
 
   void _callPhone() async {
@@ -108,9 +50,7 @@ class _OrderCardState extends State<OrderCard> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    widget
-                        .order
-                        .address, // Используем address из объекта OrderModel
+                    widget.order.address,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w500,
@@ -121,7 +61,6 @@ class _OrderCardState extends State<OrderCard> {
                   icon: const Icon(Icons.map, color: Colors.blue, size: 28),
                   tooltip: 'Показать на карте',
                   onPressed: () {
-                    // Открыть адрес в Google Maps
                     final query = Uri.encodeComponent(widget.order.address);
                     final url =
                         'https://www.google.com/maps/search/?api=1&query=$query';
@@ -155,23 +94,7 @@ class _OrderCardState extends State<OrderCard> {
               ),
               const SizedBox(height: 12),
             ],
-            // Кнопка "Завершить доставку" для заказов в работе
-            if (widget.order.status == OrderStatus.inProgress) ...[
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Завершить доставку'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
-                  onPressed: _showPinDialog, // Вызов диалога для ввода PIN
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
+            // Название товара
             Row(
               children: [
                 Icon(Icons.inventory_2, size: 32, color: Colors.blueGrey[700]),
@@ -188,6 +111,7 @@ class _OrderCardState extends State<OrderCard> {
               ],
             ),
             const SizedBox(height: 10),
+            // Габариты
             Row(
               children: [
                 Icon(Icons.straighten, color: Colors.grey[700]),
@@ -203,6 +127,7 @@ class _OrderCardState extends State<OrderCard> {
               ],
             ),
             const SizedBox(height: 8),
+            // Имя клиента
             Row(
               children: [
                 Icon(Icons.person, color: Colors.grey[700]),
@@ -218,6 +143,7 @@ class _OrderCardState extends State<OrderCard> {
               ],
             ),
             const SizedBox(height: 8),
+            // Телефон клиента
             Row(
               children: [
                 Icon(Icons.phone, color: Colors.grey[700]),
@@ -244,37 +170,108 @@ class _OrderCardState extends State<OrderCard> {
               ],
             ),
             const Divider(height: 24, thickness: 1.2),
+            // Когда привезти
             Row(
               children: [
                 Icon(Icons.access_time, color: Colors.grey[700]),
                 const SizedBox(width: 8),
                 const Text('Когда привезти:', style: TextStyle(fontSize: 18)),
                 const SizedBox(width: 8),
-                Text(
-                  deliveryTime ?? 'Не выбрано',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.deepOrange,
-                  ),
-                ),
-                if (!isCompleted) ...[
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _selectDeliveryTime, // метод выбора времени
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      textStyle: const TextStyle(fontSize: 16),
+                DropdownButton<DeliveryType>(
+                  value: selectedDeliveryType,
+                  items: [
+                    DropdownMenuItem(
+                      value: DeliveryType.urgent,
+                      child: Text('Срочно'),
                     ),
-                    child: const Text('Выбрать'),
+                    DropdownMenuItem(
+                      value: DeliveryType.in1hour,
+                      child: Text('Через 1 час'),
+                    ),
+                    DropdownMenuItem(
+                      value: DeliveryType.in2hours,
+                      child: Text('Через 2 часа'),
+                    ),
+                    DropdownMenuItem(
+                      value: DeliveryType.in3hours,
+                      child: Text('Через 3 часа'),
+                    ),
+                    DropdownMenuItem(
+                      value: DeliveryType.tomorrowMorning,
+                      child: Text('Завтра утром'),
+                    ),
+                    DropdownMenuItem(
+                      value: DeliveryType.tomorrowDay,
+                      child: Text('Завтра днём'),
+                    ),
+                    DropdownMenuItem(
+                      value: DeliveryType.exactDateTime,
+                      child: Text('Точная дата/время'),
+                    ),
+                  ],
+                  onChanged:
+                      isCompleted
+                          ? null
+                          : (val) async {
+                            setState(() {
+                              selectedDeliveryType = val;
+                              widget.order.deliveryType = val!;
+                            });
+                            if (val == DeliveryType.exactDateTime) {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now().add(
+                                  Duration(days: 365),
+                                ),
+                              );
+                              if (!mounted) return;
+                              if (date != null) {
+                                final time = await showTimePicker(
+                                  context: context,
+                                  initialTime: TimeOfDay.now(),
+                                );
+                                if (!mounted) return;
+                                if (time != null) {
+                                  final dt = DateTime(
+                                    date.year,
+                                    date.month,
+                                    date.day,
+                                    time.hour,
+                                    time.minute,
+                                  );
+                                  setState(() {
+                                    selectedDateTime = dt;
+                                    widget.order.deliveryDateTime = dt;
+                                  });
+                                }
+                              }
+                            }
+                            // После смены типа доставки инициируем обновление списка (через onStatusChanged)
+                            if (widget.onStatusChanged != null) {
+                              widget.onStatusChanged!(widget.order.status);
+                            }
+                          },
+                ),
+                if (selectedDeliveryType == DeliveryType.exactDateTime &&
+                    selectedDateTime != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      '${selectedDateTime!.day.toString().padLeft(2, '0')}.${selectedDateTime!.month.toString().padLeft(2, '0')}.${selectedDateTime!.year} '
+                      '${selectedDateTime!.hour.toString().padLeft(2, '0')}:${selectedDateTime!.minute.toString().padLeft(2, '0')}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.deepOrange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ],
               ],
             ),
             const SizedBox(height: 14),
+            // PIN для завершения заказа (только одно поле в самом низу)
             Row(
               children: [
                 Icon(Icons.lock, color: Colors.grey[700]),
@@ -289,25 +286,62 @@ class _OrderCardState extends State<OrderCard> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                if (!isCompleted) ...[
+                if (!isCompleted &&
+                    widget.order.status == OrderStatus.inProgress) ...[
                   SizedBox(
-                    width: 100,
-                    child: Text(
-                      pinConfirmed && pin != null ? pin! : '—',
-                      style: const TextStyle(fontSize: 20),
+                    width: 120,
+                    child: TextField(
+                      onChanged: (value) {
+                        setState(() {
+                          pin = value;
+                        });
+                      },
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'PIN',
+                        border: OutlineInputBorder(),
+                      ),
+                      enabled: !isCompleted,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _showPinDialog,
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Завершить'),
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
+                        vertical: 14,
+                        horizontal: 12,
                       ),
                       textStyle: const TextStyle(fontSize: 16),
                     ),
-                    child: const Text('Ввести PIN'),
+                    onPressed:
+                        isCompleted
+                            ? null
+                            : () {
+                              if (pin == testPin) {
+                                setState(() {
+                                  widget.order.status = OrderStatus.completed;
+                                });
+                                if (widget.onStatusChanged != null) {
+                                  widget.onStatusChanged!(
+                                    OrderStatus.completed,
+                                  );
+                                }
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Доставка завершена успешно'),
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Неверный PIN!'),
+                                  ),
+                                );
+                              }
+                            },
                   ),
                 ],
               ],

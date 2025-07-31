@@ -55,6 +55,36 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void sortOrdersInProgress() {
+    orders.sort((a, b) {
+      // Сортируем только заказы в работе, остальные не трогаем
+      if (a.status != model.OrderStatus.inProgress &&
+          b.status != model.OrderStatus.inProgress) {
+        return 0;
+      }
+      if (a.status == model.OrderStatus.inProgress &&
+          b.status != model.OrderStatus.inProgress) {
+        return -1;
+      }
+      if (a.status != model.OrderStatus.inProgress &&
+          b.status == model.OrderStatus.inProgress) {
+        return 1;
+      }
+      // Оба в работе — сортируем по срочности
+      int cmp = a.deliveryType.index.compareTo(b.deliveryType.index);
+      if (cmp != 0) {
+        return cmp;
+      }
+      if (a.deliveryType == model.DeliveryType.exactDateTime &&
+          b.deliveryType == model.DeliveryType.exactDateTime) {
+        if (a.deliveryDateTime != null && b.deliveryDateTime != null) {
+          return a.deliveryDateTime!.compareTo(b.deliveryDateTime!);
+        }
+      }
+      return 0;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -99,7 +129,17 @@ class _HomeScreenState extends State<HomeScreen> {
             order: filtered[index],
             onStatusChanged: (newStatus) {
               setState(() {
-                filtered[index].status = newStatus;
+                // Обновляем статус и deliveryType в исходном списке orders
+                final origIndex = orders.indexWhere(
+                  (o) => o.id == filtered[index].id,
+                );
+                if (origIndex != -1) {
+                  orders[origIndex].status = filtered[index].status;
+                  orders[origIndex].deliveryType = filtered[index].deliveryType;
+                  orders[origIndex].deliveryDateTime =
+                      filtered[index].deliveryDateTime;
+                }
+                sortOrdersInProgress();
               });
             },
           ),
