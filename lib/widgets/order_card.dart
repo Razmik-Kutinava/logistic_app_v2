@@ -4,7 +4,8 @@ import '../models/order_model.dart';
 
 class OrderCard extends StatefulWidget {
   final OrderModel order;
-  const OrderCard({required this.order, super.key});
+  final void Function(OrderStatus)? onStatusChanged;
+  const OrderCard({required this.order, this.onStatusChanged, super.key});
 
   @override
   State<OrderCard> createState() => _OrderCardState();
@@ -14,51 +15,48 @@ class _OrderCardState extends State<OrderCard> {
   String? deliveryTime;
   String? pin;
   bool pinConfirmed = false;
+  final String testPin = '1234'; // Тестовый PIN-код
 
-  @override
-  void initState() {
-    super.initState();
-    deliveryTime = widget.order.deliveryTime;
-  }
-
-  void _selectDeliveryTime() async {
-    final times = [
-      'Как можно скорее',
-      'Через час',
-      'Через два часа',
-      'Завтра утром',
-    ];
-    final selected = await showDialog<String>(
+  // Метод для выбора времени доставки
+  Future<void> _selectDeliveryTime() async {
+    final pickedTime = await showTimePicker(
       context: context,
-      builder:
-          (ctx) => SimpleDialog(
-            title: const Text('Когда привезти груз?'),
-            children:
-                times
-                    .map(
-                      (t) => SimpleDialogOption(
-                        child: Text(t, style: const TextStyle(fontSize: 20)),
-                        onPressed: () => Navigator.pop(ctx, t),
-                      ),
-                    )
-                    .toList(),
-          ),
+      initialTime: TimeOfDay.now(),
     );
-    if (selected != null) {
+    if (pickedTime != null) {
       setState(() {
-        deliveryTime = selected;
-        widget.order.deliveryTime = selected;
+        deliveryTime = pickedTime.format(context);
       });
     }
   }
 
-  void _showPinDialog() async {
+  // Функция для обновления статуса заказа на завершенный
+  void _completeDelivery(String enteredPin) {
+    if (enteredPin == testPin) {
+      setState(() {
+        widget.order.status = OrderStatus.completed;
+      });
+      if (widget.onStatusChanged != null) {
+        widget.onStatusChanged!(OrderStatus.completed);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Доставка завершена успешно')),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Неверный PIN!')));
+    }
+  }
+
+  // Диалоговое окно для ввода PIN
+  Future<void> _showPinDialog() async {
     final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder:
           (ctx) => AlertDialog(
-            title: const Text('Введите PIN-код от клиента'),
+            title: const Text('Введите тестовый PIN для завершения'),
             content: TextField(
               controller: controller,
               decoration: const InputDecoration(hintText: 'PIN-код'),
@@ -67,7 +65,9 @@ class _OrderCardState extends State<OrderCard> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+                onPressed: () {
+                  Navigator.pop(ctx, controller.text.trim());
+                },
                 child: const Text(
                   'Подтвердить',
                   style: TextStyle(fontSize: 18),
@@ -76,11 +76,9 @@ class _OrderCardState extends State<OrderCard> {
             ],
           ),
     );
+
     if (result != null && result.isNotEmpty) {
-      setState(() {
-        pin = result;
-        pinConfirmed = true;
-      });
+      _completeDelivery(result); // Проверка PIN и завершение доставки
     }
   }
 
@@ -103,6 +101,77 @@ class _OrderCardState extends State<OrderCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Адрес доставки
+            Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.red[700]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget
+                        .order
+                        .address, // Используем address из объекта OrderModel
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.map, color: Colors.blue, size: 28),
+                  tooltip: 'Показать на карте',
+                  onPressed: () {
+                    // Открыть адрес в Google Maps
+                    final query = Uri.encodeComponent(widget.order.address);
+                    final url =
+                        'https://www.google.com/maps/search/?api=1&query=$query';
+                    launchUrl(Uri.parse(url));
+                  },
+                ),
+              ],
+            ),
+            const Divider(height: 24, thickness: 1.2),
+            // Кнопка "Взять в работу"
+            if (widget.order.status == OrderStatus.active) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Взять в работу'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(fontSize: 18),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      widget.order.status = OrderStatus.inProgress;
+                    });
+                    if (widget.onStatusChanged != null) {
+                      widget.onStatusChanged!(OrderStatus.inProgress);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Кнопка "Завершить доставку" для заказов в работе
+            if (widget.order.status == OrderStatus.inProgress) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Завершить доставку'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(fontSize: 18),
+                  ),
+                  onPressed: _showPinDialog, // Вызов диалога для ввода PIN
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             Row(
               children: [
                 Icon(Icons.inventory_2, size: 32, color: Colors.blueGrey[700]),
@@ -192,7 +261,7 @@ class _OrderCardState extends State<OrderCard> {
                 if (!isCompleted) ...[
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: _selectDeliveryTime,
+                    onPressed: _selectDeliveryTime, // метод выбора времени
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,

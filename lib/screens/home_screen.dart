@@ -1,50 +1,54 @@
 import 'package:flutter/material.dart';
-import '../models/order_model.dart';
+import '../models/order_model.dart' as model;
 import '../widgets/order_card.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<OrderModel> orders = [
-    OrderModel(
+  List<model.OrderModel> orders = [
+    model.OrderModel(
       id: '1',
       name: 'Телевизор LG 55"',
       dimensions: '140x80x20 см',
       clientName: 'Артем',
       clientPhone: '+37477123456',
-      status: OrderStatus.active,
+      address: 'г. Ереван, ул. Абовяна, 12',
+      status: model.OrderStatus.active,
     ),
-    OrderModel(
+    model.OrderModel(
       id: '2',
       name: 'Стиральная машина Samsung',
       dimensions: '60x60x85 см',
       clientName: 'Карина',
       clientPhone: '+37477345678',
-      status: OrderStatus.inProgress,
+      address: 'г. Ереван, ул. Тиграняна, 5',
+      status: model.OrderStatus.inProgress,
     ),
-    OrderModel(
+    model.OrderModel(
       id: '3',
       name: 'Холодильник Bosch',
       dimensions: '70x70x200 см',
       clientName: 'Вардан',
       clientPhone: '+37477223344',
-      status: OrderStatus.completed,
+      address: 'г. Ереван, пр. Маштоца, 22',
+      status: model.OrderStatus.completed,
     ),
   ];
 
   void handleQRScan(String qrData) {
-    final newOrder = OrderModel(
+    final newOrder = model.OrderModel(
       id: qrData,
       name: 'Ноутбук ASUS',
       dimensions: '30x20x5 см',
       clientName: 'Сергей',
       clientPhone: '+37477223311',
-      status: OrderStatus.active,
+      address: 'г. Ереван, ул. Пушкина, 8',
+      status: model.OrderStatus.active,
     );
     setState(() {
       orders.add(newOrder);
@@ -68,9 +72,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         body: TabBarView(
           children: [
-            buildOrderList(OrderStatus.active),
-            buildOrderList(OrderStatus.inProgress),
-            buildOrderList(OrderStatus.completed),
+            buildOrderList(model.OrderStatus.active),
+            buildOrderList(model.OrderStatus.inProgress),
+            buildOrderList(model.OrderStatus.completed),
           ],
         ),
         floatingActionButton: FloatingActionButton(
@@ -83,14 +87,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildOrderList(OrderStatus status) {
+  Widget buildOrderList(model.OrderStatus status) {
     final filtered = orders.where((order) => order.status == status).toList();
     if (filtered.isEmpty) {
       return const Center(child: Text('Нет заказов'));
     }
     return ListView.builder(
       itemCount: filtered.length,
-      itemBuilder: (context, index) => OrderCard(order: filtered[index]),
+      itemBuilder:
+          (context, index) => OrderCard(
+            order: filtered[index],
+            onStatusChanged: (newStatus) {
+              setState(() {
+                filtered[index].status = newStatus;
+              });
+            },
+          ),
     );
   }
 }

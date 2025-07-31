@@ -6,6 +6,7 @@ class OrderModel {
   final String dimensions;
   final String clientName;
   final String clientPhone;
+  final String address;
   OrderStatus status;
   String? deliveryTime;
 
@@ -15,6 +16,7 @@ class OrderModel {
     required this.dimensions,
     required this.clientName,
     required this.clientPhone,
+    required this.address,
     required this.status,
     this.deliveryTime,
   });
