@@ -1,4 +1,4 @@
-enum OrderStatus { active, inProgress, completed, returned }
+enum OrderStatus { active, inProgress, completed }
 
 enum DeliveryType {
   urgent, // Срочно
@@ -20,7 +20,6 @@ class OrderModel {
   OrderStatus status;
   DeliveryType deliveryType;
   DateTime? deliveryDateTime;
-  String? deliveryTime;
 
   OrderModel({
     required this.id,
@@ -30,8 +29,31 @@ class OrderModel {
     required this.clientPhone,
     required this.address,
     required this.status,
-    this.deliveryType = DeliveryType.urgent,
+    required this.deliveryType,
     this.deliveryDateTime,
-    this.deliveryTime,
   });
+
+  OrderModel copyWith({
+    String? id,
+    String? name,
+    String? dimensions,
+    String? clientName,
+    String? clientPhone,
+    String? address,
+    OrderStatus? status,
+    DeliveryType? deliveryType,
+    DateTime? deliveryDateTime,
+  }) {
+    return OrderModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      dimensions: dimensions ?? this.dimensions,
+      clientName: clientName ?? this.clientName,
+      clientPhone: clientPhone ?? this.clientPhone,
+      address: address ?? this.address,
+      status: status ?? this.status,
+      deliveryType: deliveryType ?? this.deliveryType,
+      deliveryDateTime: deliveryDateTime ?? this.deliveryDateTime,
+    );
+  }
 }

@@ -5,7 +5,13 @@ import '../models/order_model.dart';
 class OrderCard extends StatefulWidget {
   final OrderModel order;
   final void Function(OrderStatus)? onStatusChanged;
-  const OrderCard({required this.order, this.onStatusChanged, super.key});
+  final void Function(String orderId, DateTime? newTime)? onDeliveryTimeChanged;
+  const OrderCard({
+    required this.order,
+    this.onStatusChanged,
+    this.onDeliveryTimeChanged,
+    super.key,
+  });
 
   @override
   State<OrderCard> createState() => _OrderCardState();
@@ -245,6 +251,12 @@ class _OrderCardState extends State<OrderCard> {
                                     selectedDateTime = dt;
                                     widget.order.deliveryDateTime = dt;
                                   });
+                                  if (widget.onDeliveryTimeChanged != null) {
+                                    widget.onDeliveryTimeChanged!(
+                                      widget.order.id,
+                                      dt,
+                                    );
+                                  }
                                 }
                               }
                             }

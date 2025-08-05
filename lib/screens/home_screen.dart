@@ -19,6 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
       clientPhone: '+37477123456',
       address: 'г. Ереван, ул. Абовяна, 12',
       status: model.OrderStatus.active,
+      deliveryType: model.DeliveryType.urgent,
+      deliveryDateTime: DateTime.now().add(Duration(hours: 2)),
     ),
     model.OrderModel(
       id: '2',
@@ -28,6 +30,8 @@ class _HomeScreenState extends State<HomeScreen> {
       clientPhone: '+37477345678',
       address: 'г. Ереван, ул. Тиграняна, 5',
       status: model.OrderStatus.inProgress,
+      deliveryType: model.DeliveryType.in1hour,
+      deliveryDateTime: DateTime.now().add(Duration(hours: 1)),
     ),
     model.OrderModel(
       id: '3',
@@ -37,6 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
       clientPhone: '+37477223344',
       address: 'г. Ереван, пр. Маштоца, 22',
       status: model.OrderStatus.completed,
+      deliveryType: model.DeliveryType.tomorrowDay,
+      deliveryDateTime: null,
     ),
   ];
 
@@ -49,39 +55,31 @@ class _HomeScreenState extends State<HomeScreen> {
       clientPhone: '+37477223311',
       address: 'г. Ереван, ул. Пушкина, 8',
       status: model.OrderStatus.active,
+      deliveryType: model.DeliveryType.in3hours,
+      deliveryDateTime: DateTime.now().add(Duration(hours: 3)),
     );
     setState(() {
       orders.add(newOrder);
     });
   }
 
-  void sortOrdersInProgress() {
-    orders.sort((a, b) {
-      // Сортируем только заказы в работе, остальные не трогаем
-      if (a.status != model.OrderStatus.inProgress &&
-          b.status != model.OrderStatus.inProgress) {
-        return 0;
+  void handleDeliveryTimeChanged(String orderId, DateTime? newDeliveryTime) {
+    setState(() {
+      final orderIndex = orders.indexWhere((order) => order.id == orderId);
+      if (orderIndex != -1) {
+        orders[orderIndex] = orders[orderIndex].copyWith(
+          deliveryDateTime: newDeliveryTime,
+        );
       }
-      if (a.status == model.OrderStatus.inProgress &&
-          b.status != model.OrderStatus.inProgress) {
-        return -1;
+    });
+  }
+
+  void handleStatusChanged(String orderId, model.OrderStatus newStatus) {
+    setState(() {
+      final orderIndex = orders.indexWhere((order) => order.id == orderId);
+      if (orderIndex != -1) {
+        orders[orderIndex] = orders[orderIndex].copyWith(status: newStatus);
       }
-      if (a.status != model.OrderStatus.inProgress &&
-          b.status == model.OrderStatus.inProgress) {
-        return 1;
-      }
-      // Оба в работе — сортируем по срочности
-      int cmp = a.deliveryType.index.compareTo(b.deliveryType.index);
-      if (cmp != 0) {
-        return cmp;
-      }
-      if (a.deliveryType == model.DeliveryType.exactDateTime &&
-          b.deliveryType == model.DeliveryType.exactDateTime) {
-        if (a.deliveryDateTime != null && b.deliveryDateTime != null) {
-          return a.deliveryDateTime!.compareTo(b.deliveryDateTime!);
-        }
-      }
-      return 0;
     });
   }
 
@@ -92,6 +90,24 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Ваши заказы'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.account_circle, size: 32),
+              tooltip: 'Личный кабинет',
+              onPressed: () {
+                Navigator.pushNamed(
+                  context,
+                  '/profile',
+                  arguments: {
+                    'phone': '1234567890',
+                    'name': 'Иван Петров',
+                    'carNumber': 'A123BC 01',
+                    'experience': 5,
+                  },
+                );
+              },
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Активные'),
@@ -100,12 +116,22 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            buildOrderList(model.OrderStatus.active),
-            buildOrderList(model.OrderStatus.inProgress),
-            buildOrderList(model.OrderStatus.completed),
-          ],
+        body: Builder(
+          builder: (context) {
+            // Сортировка заказов по deliveryDateTime
+            orders.sort(
+              (a, b) => (a.deliveryDateTime ?? DateTime(2100)).compareTo(
+                b.deliveryDateTime ?? DateTime(2100),
+              ),
+            );
+            return TabBarView(
+              children: [
+                buildOrderList(model.OrderStatus.active),
+                buildOrderList(model.OrderStatus.inProgress),
+                buildOrderList(model.OrderStatus.completed),
+              ],
+            );
+          },
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
@@ -118,29 +144,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget buildOrderList(model.OrderStatus status) {
-    final filtered = orders.where((order) => order.status == status).toList();
-    if (filtered.isEmpty) {
+    // Filter orders by status
+    final filteredOrders =
+        orders.where((order) => order.status == status).toList();
+
+    // Sort in-progress orders by deliveryDateTime (earliest first)
+    if (status == model.OrderStatus.inProgress) {
+      filteredOrders.sort((a, b) {
+        if (a.deliveryDateTime == null && b.deliveryDateTime == null) return 0;
+        if (a.deliveryDateTime == null) return 1;
+        if (b.deliveryDateTime == null) return -1;
+        return a.deliveryDateTime!.compareTo(b.deliveryDateTime!);
+      });
+    }
+
+    if (filteredOrders.isEmpty) {
       return const Center(child: Text('Нет заказов'));
     }
+
     return ListView.builder(
-      itemCount: filtered.length,
+      itemCount: filteredOrders.length,
       itemBuilder:
           (context, index) => OrderCard(
-            order: filtered[index],
+            order: filteredOrders[index],
             onStatusChanged: (newStatus) {
-              setState(() {
-                // Обновляем статус и deliveryType в исходном списке orders
-                final origIndex = orders.indexWhere(
-                  (o) => o.id == filtered[index].id,
-                );
-                if (origIndex != -1) {
-                  orders[origIndex].status = filtered[index].status;
-                  orders[origIndex].deliveryType = filtered[index].deliveryType;
-                  orders[origIndex].deliveryDateTime =
-                      filtered[index].deliveryDateTime;
-                }
-                sortOrdersInProgress();
-              });
+              handleStatusChanged(filteredOrders[index].id, newStatus);
+            },
+            onDeliveryTimeChanged: (orderId, newTime) {
+              handleDeliveryTimeChanged(orderId, newTime);
             },
           ),
     );
