@@ -15,6 +15,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: '1',
       name: 'Телевизор LG 55"',
       dimensions: '140x80x20 см',
+      weight: 18.5,
       clientName: 'Артем',
       clientPhone: '+37477123456',
       address: 'г. Ереван, ул. Абовяна, 12',
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: '2',
       name: 'Стиральная машина Samsung',
       dimensions: '60x60x85 см',
+      weight: 60.0,
       clientName: 'Карина',
       clientPhone: '+37477345678',
       address: 'г. Ереван, ул. Тиграняна, 5',
@@ -37,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: '3',
       name: 'Холодильник Bosch',
       dimensions: '70x70x200 см',
+      weight: 85.0,
       clientName: 'Вардан',
       clientPhone: '+37477223344',
       address: 'г. Ереван, пр. Маштоца, 22',
@@ -51,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: qrData,
       name: 'Ноутбук ASUS',
       dimensions: '30x20x5 см',
+      weight: 2.2,
       clientName: 'Сергей',
       clientPhone: '+37477223311',
       address: 'г. Ереван, ул. Пушкина, 8',
@@ -95,6 +99,21 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.account_circle, size: 32),
               tooltip: 'Личный кабинет',
               onPressed: () {
+                final completedOrdersCount =
+                    orders
+                        .where(
+                          (order) =>
+                              order.status == model.OrderStatus.completed,
+                        )
+                        .length;
+                final cancelledOrders =
+                    orders
+                        .where(
+                          (order) =>
+                              order.status == model.OrderStatus.cancelled,
+                        )
+                        .toList();
+                final cancelledOrdersCount = cancelledOrders.length;
                 Navigator.pushNamed(
                   context,
                   '/profile',
@@ -103,6 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     'name': 'Иван Петров',
                     'carNumber': 'A123BC 01',
                     'experience': 5,
+                    'completedOrders': completedOrdersCount,
+                    'cancelledOrdersCount': cancelledOrdersCount,
+                    'cancelledOrders': cancelledOrders,
                   },
                 );
               },

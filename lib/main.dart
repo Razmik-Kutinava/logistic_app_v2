@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth_phone_screen.dart';
 import 'screens/driver_profile_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,8 +20,9 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
         useMaterial3: true,
       ),
-      initialRoute: '/auth',
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => const SplashScreen(),
         '/auth': (context) => const AuthPhoneScreen(),
         '/main': (context) => HomeScreen(),
         '/profile': (context) {
@@ -32,6 +34,9 @@ class MyApp extends StatelessWidget {
             name: args?['name'] ?? '',
             carNumber: args?['carNumber'] ?? '',
             experience: args?['experience'] ?? 0,
+            completedOrders: args?['completedOrders'] ?? 0,
+            cancelledOrdersCount: args?['cancelledOrdersCount'] ?? 0,
+            cancelledOrders: args?['cancelledOrders'] ?? [],
           );
         },
       },

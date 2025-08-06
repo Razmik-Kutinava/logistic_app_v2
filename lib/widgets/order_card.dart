@@ -18,6 +18,55 @@ class OrderCard extends StatefulWidget {
 }
 
 class _OrderCardState extends State<OrderCard> {
+  int callCount = 0;
+
+  void _callPhone() async {
+    final uri = Uri(scheme: 'tel', path: widget.order.clientPhone);
+    setState(() {
+      callCount++;
+    });
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  void _showCancelReasonDialog() {
+    TextEditingController reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Причина отказа клиента'),
+          content: TextField(
+            controller: reasonController,
+            decoration: const InputDecoration(hintText: 'Введите причину'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  widget.order.status = OrderStatus.cancelled;
+                  widget.order.cancelReason = reasonController.text;
+                });
+                if (widget.onStatusChanged != null) {
+                  widget.onStatusChanged!(OrderStatus.cancelled);
+                }
+                Navigator.of(context).pop();
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   DeliveryType? selectedDeliveryType;
   DateTime? selectedDateTime;
   String? pin;
@@ -28,13 +77,6 @@ class _OrderCardState extends State<OrderCard> {
     super.initState();
     selectedDeliveryType = widget.order.deliveryType;
     selectedDateTime = widget.order.deliveryDateTime;
-  }
-
-  void _callPhone() async {
-    final uri = Uri(scheme: 'tel', path: widget.order.clientPhone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
   }
 
   @override
@@ -133,6 +175,21 @@ class _OrderCardState extends State<OrderCard> {
               ],
             ),
             const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.scale, color: Colors.grey[700]),
+                const SizedBox(width: 8),
+                Text('Вес: ', style: TextStyle(fontSize: 18)),
+                Text(
+                  '${widget.order.weight.toStringAsFixed(1)} кг',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             // Имя клиента
             Row(
               children: [
@@ -149,7 +206,52 @@ class _OrderCardState extends State<OrderCard> {
               ],
             ),
             const SizedBox(height: 8),
-            // Телефон клиента
+            // Кнопка "Клиент отказался" для водителя
+            if (widget.order.status == OrderStatus.inProgress) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.person_off, color: Colors.red),
+                  label: const Text('Клиент отказался'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[400],
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    textStyle: const TextStyle(fontSize: 18),
+                  ),
+                  onPressed: _showCancelReasonDialog,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            // Отображение причины отказа клиента
+            if (widget.order.status == OrderStatus.cancelled &&
+                (widget.order.cancelReason?.isNotEmpty ?? false)) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Причина отказа клиента: ${widget.order.cancelReason}',
+                        style: const TextStyle(color: Colors.red, fontSize: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 8),
+            // Телефон клиента + счетчик звонков
             Row(
               children: [
                 Icon(Icons.phone, color: Colors.grey[700]),
@@ -171,6 +273,30 @@ class _OrderCardState extends State<OrderCard> {
                   child: IconButton(
                     icon: const Icon(Icons.call, color: Colors.green, size: 28),
                     onPressed: _callPhone,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.call_made, color: Colors.blue, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Звонков: $callCount',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
