@@ -345,13 +345,14 @@ class _OrderCardState extends State<OrderCard> {
                       isCompleted
                           ? null
                           : (val) async {
+                            final localContext = context;
                             setState(() {
                               selectedDeliveryType = val;
                               widget.order.deliveryType = val!;
                             });
                             if (val == DeliveryType.exactDateTime) {
                               final date = await showDatePicker(
-                                context: context,
+                                context: localContext,
                                 initialDate: DateTime.now(),
                                 firstDate: DateTime.now(),
                                 lastDate: DateTime.now().add(
@@ -361,7 +362,7 @@ class _OrderCardState extends State<OrderCard> {
                               if (!mounted) return;
                               if (date != null) {
                                 final time = await showTimePicker(
-                                  context: context,
+                                  context: localContext,
                                   initialTime: TimeOfDay.now(),
                                 );
                                 if (!mounted) return;
@@ -373,6 +374,7 @@ class _OrderCardState extends State<OrderCard> {
                                     time.hour,
                                     time.minute,
                                   );
+                                  if (!mounted) return;
                                   setState(() {
                                     selectedDateTime = dt;
                                     widget.order.deliveryDateTime = dt;
@@ -387,6 +389,7 @@ class _OrderCardState extends State<OrderCard> {
                               }
                             }
                             // После смены типа доставки инициируем обновление списка (через onStatusChanged)
+                            if (!mounted) return;
                             if (widget.onStatusChanged != null) {
                               widget.onStatusChanged!(widget.order.status);
                             }
