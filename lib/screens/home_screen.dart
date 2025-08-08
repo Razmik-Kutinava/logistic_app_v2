@@ -104,7 +104,17 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       final orderIndex = orders.indexWhere((order) => order.id == orderId);
       if (orderIndex != -1) {
-        orders[orderIndex] = orders[orderIndex].copyWith(status: newStatus);
+        final prevStatus = orders[orderIndex].status;
+        // Если возврат успешно завершён (PIN введён), считаем как выполненный заказ
+        if (prevStatus == model.OrderStatus.refundRequired &&
+            newStatus == model.OrderStatus.completed) {
+          orders[orderIndex] = orders[orderIndex].copyWith(
+            status: model.OrderStatus.completed,
+            deliveryDateTime: DateTime.now(),
+          );
+        } else {
+          orders[orderIndex] = orders[orderIndex].copyWith(status: newStatus);
+        }
       }
     });
   }
@@ -124,157 +134,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasRefunds = orders.any(
-      (order) => order.status == model.OrderStatus.refundRequired,
-    );
-    // Фильтрация завершённых заказов только за текущий месяц
-    final now = DateTime.now();
-    final completedThisMonth =
-        orders.where((order) {
-          if (order.status != model.OrderStatus.completed) return false;
-          if (order.deliveryDateTime == null) return false;
-          return order.deliveryDateTime!.year == now.year &&
-              order.deliveryDateTime!.month == now.month;
-        }).toList();
-    final completedCount = completedThisMonth.length;
-    int salary = 250000;
-    int bonus = 0;
-    if (completedCount > 1800) {
-      bonus = (completedCount - 1800) * 150;
-      salary += bonus;
-    }
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Ваши заказы'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.account_circle, size: 32),
-              tooltip: 'Личный кабинет',
-              onPressed: () {
-                final completedOrdersCount =
-                    orders
-                        .where(
-                          (order) =>
-                              order.status == model.OrderStatus.completed,
-                        )
-                        .length;
-                final cancelledOrders =
-                    orders
-                        .where(
-                          (order) =>
-                              order.status == model.OrderStatus.cancelled,
-                        )
-                        .toList();
-                final cancelledOrdersCount = cancelledOrders.length;
-                final refundOrders =
-                    orders
-                        .where(
-                          (order) =>
-                              order.status == model.OrderStatus.refundRequired,
-                        )
-                        .toList();
-                final refundOrdersCount = refundOrders.length;
-                Navigator.pushNamed(
-                  context,
-                  '/profile',
-                  arguments: {
-                    'phone': '1234567890',
-                    'name': 'Иван Петров',
-                    'carNumber': 'A123BC 01',
-                    'experience': 5,
-                    'completedOrders': completedOrdersCount,
-                    'cancelledOrdersCount': cancelledOrdersCount,
-                    'cancelledOrders': cancelledOrders,
-                    'refundOrdersCount': refundOrdersCount,
-                    'refundOrders': refundOrders,
-                  },
-                );
-              },
-            ),
-          ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(68),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.assignment_turned_in,
-                            color: Colors.blue[700],
-                            size: 20,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'За месяц: $completedCount',
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            '${salary} драм',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: bonus > 0 ? Colors.green : Colors.black,
-                            ),
-                          ),
-                          if (bonus > 0) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.emoji_events,
-                              color: Colors.orange,
-                              size: 18,
-                            ),
-                            Text(
-                              '+${bonus} драм',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.orange,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                TabBar(
-                  tabs: [
-                    const Tab(text: 'Активные'),
-                    const Tab(text: 'В работе'),
-                    Tab(
-                      child: Text(
-                        'Завершённые',
-                        style: TextStyle(
-                          color: hasRefunds ? Colors.red : null,
-                          fontWeight:
-                              hasRefunds ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Активные'),
+              Tab(text: 'В работе'),
+              Tab(text: 'Завершённые'),
+            ],
           ),
-          // ...компактный счетчик и TabBar уже реализованы выше...
         ),
         body: Builder(
           builder: (context) {
-            // Сортировка заказов по deliveryDateTime
             orders.sort(
               (a, b) => (a.deliveryDateTime ?? DateTime(2100)).compareTo(
                 b.deliveryDateTime ?? DateTime(2100),
@@ -290,20 +164,50 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            handleQRScan('order_${DateTime.now().millisecondsSinceEpoch}');
+          onPressed: () async {
+            // Здесь должен быть вызов реального сканера QR-кода
+            // Для теста: добавляем заказ с рандомным id
+            final randomId = DateTime.now().millisecondsSinceEpoch.toString();
+            handleQRScan(randomId);
+            // Для реального приложения используйте пакет qr_code_scanner или mobile_scanner
           },
-          child: const Icon(Icons.qr_code_scanner),
+          tooltip: 'Сканировать QR',
+          child: const Icon(Icons.qr_code_scanner, size: 32),
         ),
       ),
     );
   }
 
   Widget buildOrderList(model.OrderStatus status) {
-    final filteredOrders =
-        orders.where((order) => order.status == status).toList();
+    List<model.OrderModel> filteredOrders;
+
     if (status == model.OrderStatus.inProgress) {
+      // Во вкладке "В работе" показываем как inProgress, так и refundRequired
+      filteredOrders =
+          orders
+              .where(
+                (order) =>
+                    order.status == model.OrderStatus.inProgress ||
+                    order.status == model.OrderStatus.refundRequired,
+              )
+              .toList();
+    } else {
+      // Для остальных вкладок показываем только соответствующий статус
+      filteredOrders = orders.where((order) => order.status == status).toList();
+    }
+
+    if (status == model.OrderStatus.inProgress) {
+      // Сортируем: сначала возвраты, потом обычные заказы в работе
       filteredOrders.sort((a, b) {
+        // Возвраты всегда первые
+        if (a.status == model.OrderStatus.refundRequired &&
+            b.status != model.OrderStatus.refundRequired)
+          return -1;
+        if (b.status == model.OrderStatus.refundRequired &&
+            a.status != model.OrderStatus.refundRequired)
+          return 1;
+
+        // Обычная сортировка по дате доставки
         if (a.deliveryDateTime == null && b.deliveryDateTime == null) return 0;
         if (a.deliveryDateTime == null) return 1;
         if (b.deliveryDateTime == null) return -1;
@@ -320,15 +224,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final isRefund = order.status == model.OrderStatus.refundRequired;
         return OrderCard(
           order: order,
-          blockAll: blockAll && !isRefund,
-          blockExceptCall: blockAll && isRefund,
-          onCall: () {
-            if (isRefund && blockAll) {
-              setState(() {
-                refundCallDone = true;
-              });
-            }
-          },
+          blockAll: blockAll, // Все карточки получают общий флаг блокировки
+          blockExceptCall:
+              blockAll &&
+              isRefund, // Только возврат получает исключение на звонок
+          onCall: () => handleRefundCall(isRefund),
           onStatusChanged: (newStatus) {
             handleStatusChanged(order.id, newStatus);
           },
@@ -343,33 +243,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void handleRefundCall(bool isRefund) {
+    if (isRefund && blockAll) {
+      setState(() {
+        refundCallDone = true;
+      });
+    }
+  }
+
   Widget buildCompletedList() {
+    // Показываем только завершённые заказы (без возвратов)
     final completed =
         orders.where((o) => o.status == model.OrderStatus.completed).toList();
-    final refunds =
-        orders
-            .where((o) => o.status == model.OrderStatus.refundRequired)
-            .toList();
-    final all = [...refunds, ...completed];
-    if (all.isEmpty) {
-      return const Center(child: Text('Нет заказов'));
+    if (completed.isEmpty) {
+      return const Center(child: Text('Нет завершённых заказов'));
     }
     return ListView.builder(
-      itemCount: all.length,
+      itemCount: completed.length,
       itemBuilder: (context, index) {
-        final order = all[index];
-        final isRefund = order.status == model.OrderStatus.refundRequired;
+        final order = completed[index];
         return OrderCard(
           order: order,
-          blockAll: blockAll && !isRefund,
-          blockExceptCall: blockAll && isRefund,
-          onCall: () {
-            if (isRefund && blockAll) {
-              setState(() {
-                refundCallDone = true;
-              });
-            }
-          },
+          blockAll: false, // В завершённых заказах нет блокировок
+          blockExceptCall: false, // Нет исключений для звонков
+          onCall: () {}, // Пустой обработчик
           onStatusChanged: (newStatus) {
             handleStatusChanged(order.id, newStatus);
           },

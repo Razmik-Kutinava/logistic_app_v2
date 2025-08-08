@@ -87,9 +87,22 @@ class _OrderCardState extends State<OrderCard> {
   Future<void> _callPhone() async {
     final uri = Uri(scheme: 'tel', path: widget.order.clientPhone);
     setState(() => _callCount++);
+
+    // Вызываем callback для разблокировки ПЕРЕД звонком
     widget.onCall?.call();
+
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
+
+      // Показываем уведомление после звонка для возврата
+      if (_status == OrderStatus.refundRequired) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Звонок сделан, приложение разблокировано!'),
+          ),
+        );
+      }
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,62 +136,11 @@ class _OrderCardState extends State<OrderCard> {
             ),
             ElevatedButton(
               onPressed: () {
-                final reason = reasonController.text.trim();
-                // Текущая реализация переводит заказ в cancelled.
-                // Если по бизнес-логике нужно сразу refundRequired —
-                // поменяйте статус здесь и логику карточки.
-                _updateStatus(OrderStatus.cancelled);
-                // Можно дополнительно уведомить родителя, если он хранит cancelReason.
+                _updateStatus(OrderStatus.refundRequired);
+                widget.onClientRefund?.call(reasonController.text.trim());
                 Navigator.of(context).pop();
               },
               child: const Text('Сохранить'),
-            ),
-          ],
-        );
-      },
-    ).then((_) => reasonController.dispose());
-  }
-
-  void _showRefundDialog() {
-    final reasonController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Клиент отказался от заказа'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Укажите причину отказа клиента:'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonController,
-                decoration: const InputDecoration(
-                  hintText: 'Например: не подошёл размер, передумал и т.д.',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Отмена'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {
-                final reason = reasonController.text.trim();
-                if (reason.isNotEmpty) {
-                  widget.onClientRefund?.call(reason);
-                }
-                Navigator.of(context).pop();
-              },
-              child: const Text(
-                'Подтвердить отказ',
-                style: TextStyle(color: Colors.white),
-              ),
             ),
           ],
         );
@@ -219,8 +181,26 @@ class _OrderCardState extends State<OrderCard> {
     widget.onStatusChanged?.call(_status);
   }
 
-  bool get _controlsBlocked => widget.blockAll;
-  bool get _onlyCallAllowed => widget.blockExceptCall;
+  // Карточка блокируется если blockAll=true
+  bool get _controlsBlocked {
+    return widget.blockAll;
+  }
+
+  // Для блокировки отдельных элементов (кроме кнопки звонка) на карточке возврата
+  bool get _shouldBlockElement {
+    return _controlsBlocked && _status == OrderStatus.refundRequired;
+  }
+
+  bool get _shouldAllowCallButton {
+    // Кнопка звонка активна:
+    // 1. Если блокировки нет - всегда активна
+    // 2. Если есть блокировка и это возврат - активна (чтобы можно было разблокировать систему)
+    // 3. Если есть блокировка и это не возврат - заблокирована
+    if (!widget.blockAll) return true; // Нет блокировки - активна
+    if (_status == OrderStatus.refundRequired)
+      return true; // Возврат при блокировке - активна
+    return false; // Обычная карточка при блокировке - заблокирована
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -228,9 +208,14 @@ class _OrderCardState extends State<OrderCard> {
     final isRefund = _status == OrderStatus.refundRequired;
 
     return Opacity(
-      opacity: _controlsBlocked ? 0.5 : 1,
+      opacity:
+          _controlsBlocked && _status != OrderStatus.refundRequired
+              ? 0.5
+              : 1, // Возврат не серый
       child: AbsorbPointer(
-        absorbing: _controlsBlocked,
+        absorbing:
+            _controlsBlocked &&
+            _status != OrderStatus.refundRequired, // Не блокировать возврат
         child: Card(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           elevation: 4,
@@ -332,7 +317,7 @@ class _OrderCardState extends State<OrderCard> {
                 const Divider(height: 24, thickness: 1.2),
 
                 // "Взять в работу"
-                if (_status == OrderStatus.active && !_onlyCallAllowed) ...[
+                if (_status == OrderStatus.active && !_controlsBlocked) ...[
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -422,7 +407,7 @@ class _OrderCardState extends State<OrderCard> {
                 const SizedBox(height: 8),
 
                 // Кнопка «Клиент отказался» (для inProgress)
-                if (_status == OrderStatus.inProgress && !_onlyCallAllowed) ...[
+                if (_status == OrderStatus.inProgress && !_controlsBlocked) ...[
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -478,20 +463,15 @@ class _OrderCardState extends State<OrderCard> {
                     Icon(Icons.phone, color: Colors.grey[700]),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap:
-                          _onlyCallAllowed
-                              ? _callPhone
-                              : (_controlsBlocked ? null : _callPhone),
+                      onTap: _shouldAllowCallButton ? _callPhone : null,
                       child: Text(
                         widget.order.clientPhone,
                         style: TextStyle(
                           fontSize: 20,
                           color:
-                              _onlyCallAllowed
+                              _shouldAllowCallButton
                                   ? Colors.blue
-                                  : (_controlsBlocked
-                                      ? Colors.grey
-                                      : Colors.blue),
+                                  : Colors.grey,
                           decoration: TextDecoration.underline,
                         ),
                       ),
@@ -503,17 +483,12 @@ class _OrderCardState extends State<OrderCard> {
                         icon: Icon(
                           Icons.call,
                           color:
-                              _onlyCallAllowed
+                              _shouldAllowCallButton
                                   ? Colors.green
-                                  : (_controlsBlocked
-                                      ? Colors.grey
-                                      : Colors.green),
+                                  : Colors.grey,
                           size: 28,
                         ),
-                        onPressed:
-                            _onlyCallAllowed
-                                ? _callPhone
-                                : (_controlsBlocked ? null : _callPhone),
+                        onPressed: _shouldAllowCallButton ? _callPhone : null,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -638,7 +613,7 @@ class _OrderCardState extends State<OrderCard> {
                       )
                     else if (!isCompleted &&
                         _status == OrderStatus.inProgress &&
-                        !_onlyCallAllowed) ...[
+                        !_controlsBlocked) ...[
                       SizedBox(
                         width: 120,
                         child: TextField(
@@ -685,21 +660,62 @@ class _OrderCardState extends State<OrderCard> {
                   ],
                 ),
 
-                // Кнопка отказа клиента для завершённых заказов (переход в refund)
+                // Кнопка "Оформить возврат" для завершённых заказов
                 if (_status == OrderStatus.completed) ...[
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.assignment_return),
-                      label: const Text('Клиент отказался'),
+                      label: const Text('Оформить возврат'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         textStyle: const TextStyle(fontSize: 16),
                       ),
-                      onPressed: _showRefundDialog,
+                      onPressed: () {
+                        final reasonController = TextEditingController();
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              title: const Text('Оформить возврат'),
+                              content: TextField(
+                                controller: reasonController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Причина возврата',
+                                  border: OutlineInputBorder(),
+                                ),
+                                maxLines: 3,
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Отмена'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  onPressed: () {
+                                    final reason = reasonController.text.trim();
+                                    if (reason.isNotEmpty) {
+                                      widget.onClientRefund?.call(reason);
+                                      _updateStatus(OrderStatus.refundRequired);
+                                    }
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text(
+                                    'Оформить',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ).then((_) => reasonController.dispose());
+                      },
                     ),
                   ),
                 ],
@@ -761,6 +777,8 @@ class _OrderCardState extends State<OrderCard> {
                             Expanded(
                               child: TextField(
                                 controller: _refundPinController,
+                                enabled:
+                                    !_shouldBlockElement, // Блокировать поле до звонка
                                 keyboardType: TextInputType.number,
                                 obscureText: true,
                                 maxLength: 6,
@@ -779,27 +797,35 @@ class _OrderCardState extends State<OrderCard> {
                                 backgroundColor: Colors.green,
                                 foregroundColor: Colors.white,
                               ),
-                              onPressed: () {
-                                final pin = _refundPinController.text.trim();
-                                if (pin == _refundTestPin) {
-                                  _updateStatus(OrderStatus.completed);
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Возврат успешно завершён!',
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Неверный PIN!'),
-                                    ),
-                                  );
-                                }
-                              },
+                              onPressed:
+                                  _shouldBlockElement
+                                      ? null
+                                      : () {
+                                        final pin =
+                                            _refundPinController.text.trim();
+                                        if (pin == _refundTestPin) {
+                                          _updateStatus(OrderStatus.completed);
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Возврат успешно завершён!',
+                                              ),
+                                            ),
+                                          );
+                                        } else {
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Неверный PIN!'),
+                                            ),
+                                          );
+                                        }
+                                      },
                             ),
                           ],
                         ),
