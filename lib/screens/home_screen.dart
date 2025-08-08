@@ -10,6 +10,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool refundCallDone = false;
+  bool get blockAll {
+    final hasRefunds = orders.any(
+      (order) => order.status == model.OrderStatus.refundRequired,
+    );
+    return hasRefunds && !refundCallDone;
+  }
+
   List<model.OrderModel> orders = [
     model.OrderModel(
       id: '1',
@@ -119,8 +127,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final hasRefunds = orders.any(
       (order) => order.status == model.OrderStatus.refundRequired,
     );
+    // Фильтрация завершённых заказов только за текущий месяц
+    final now = DateTime.now();
+    final completedThisMonth =
+        orders.where((order) {
+          if (order.status != model.OrderStatus.completed) return false;
+          if (order.deliveryDateTime == null) return false;
+          return order.deliveryDateTime!.year == now.year &&
+              order.deliveryDateTime!.month == now.month;
+        }).toList();
+    final completedCount = completedThisMonth.length;
+    int salary = 250000;
+    int bonus = 0;
+    if (completedCount > 1800) {
+      bonus = (completedCount - 1800) * 150;
+      salary += bonus;
+    }
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Ваши заказы'),
@@ -144,6 +168,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         )
                         .toList();
                 final cancelledOrdersCount = cancelledOrders.length;
+                final refundOrders =
+                    orders
+                        .where(
+                          (order) =>
+                              order.status == model.OrderStatus.refundRequired,
+                        )
+                        .toList();
+                final refundOrdersCount = refundOrders.length;
                 Navigator.pushNamed(
                   context,
                   '/profile',
@@ -155,28 +187,90 @@ class _HomeScreenState extends State<HomeScreen> {
                     'completedOrders': completedOrdersCount,
                     'cancelledOrdersCount': cancelledOrdersCount,
                     'cancelledOrders': cancelledOrders,
+                    'refundOrdersCount': refundOrdersCount,
+                    'refundOrders': refundOrders,
                   },
                 );
               },
             ),
           ],
-          bottom: TabBar(
-            tabs: [
-              const Tab(text: 'Активные'),
-              const Tab(text: 'В работе'),
-              const Tab(text: 'Завершённые'),
-              Tab(
-                child: Text(
-                  'Возвраты',
-                  style: TextStyle(
-                    color: hasRefunds ? Colors.red : null,
-                    fontWeight:
-                        hasRefunds ? FontWeight.bold : FontWeight.normal,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(68),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.assignment_turned_in,
+                            color: Colors.blue[700],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'За месяц: $completedCount',
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            '${salary} драм',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: bonus > 0 ? Colors.green : Colors.black,
+                            ),
+                          ),
+                          if (bonus > 0) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.emoji_events,
+                              color: Colors.orange,
+                              size: 18,
+                            ),
+                            Text(
+                              '+${bonus} драм',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                TabBar(
+                  tabs: [
+                    const Tab(text: 'Активные'),
+                    const Tab(text: 'В работе'),
+                    Tab(
+                      child: Text(
+                        'Завершённые',
+                        style: TextStyle(
+                          color: hasRefunds ? Colors.red : null,
+                          fontWeight:
+                              hasRefunds ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
+          // ...компактный счетчик и TabBar уже реализованы выше...
         ),
         body: Builder(
           builder: (context) {
@@ -190,8 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 buildOrderList(model.OrderStatus.active),
                 buildOrderList(model.OrderStatus.inProgress),
-                buildOrderList(model.OrderStatus.completed),
-                buildOrderList(model.OrderStatus.refundRequired),
+                buildCompletedList(),
               ],
             );
           },
@@ -207,11 +300,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget buildOrderList(model.OrderStatus status) {
-    // Filter orders by status
     final filteredOrders =
         orders.where((order) => order.status == status).toList();
-
-    // Sort in-progress orders by deliveryDateTime (earliest first)
     if (status == model.OrderStatus.inProgress) {
       filteredOrders.sort((a, b) {
         if (a.deliveryDateTime == null && b.deliveryDateTime == null) return 0;
@@ -220,26 +310,77 @@ class _HomeScreenState extends State<HomeScreen> {
         return a.deliveryDateTime!.compareTo(b.deliveryDateTime!);
       });
     }
-
     if (filteredOrders.isEmpty) {
       return const Center(child: Text('Нет заказов'));
     }
-
     return ListView.builder(
       itemCount: filteredOrders.length,
-      itemBuilder:
-          (context, index) => OrderCard(
-            order: filteredOrders[index],
-            onStatusChanged: (newStatus) {
-              handleStatusChanged(filteredOrders[index].id, newStatus);
-            },
-            onDeliveryTimeChanged: (orderId, newTime) {
-              handleDeliveryTimeChanged(orderId, newTime);
-            },
-            onClientRefund: (reason) {
-              handleClientRefund(filteredOrders[index].id, reason);
-            },
-          ),
+      itemBuilder: (context, index) {
+        final order = filteredOrders[index];
+        final isRefund = order.status == model.OrderStatus.refundRequired;
+        return OrderCard(
+          order: order,
+          blockAll: blockAll && !isRefund,
+          blockExceptCall: blockAll && isRefund,
+          onCall: () {
+            if (isRefund && blockAll) {
+              setState(() {
+                refundCallDone = true;
+              });
+            }
+          },
+          onStatusChanged: (newStatus) {
+            handleStatusChanged(order.id, newStatus);
+          },
+          onDeliveryTimeChanged: (orderId, newTime) {
+            handleDeliveryTimeChanged(orderId, newTime);
+          },
+          onClientRefund: (reason) {
+            handleClientRefund(order.id, reason);
+          },
+        );
+      },
+    );
+  }
+
+  Widget buildCompletedList() {
+    final completed =
+        orders.where((o) => o.status == model.OrderStatus.completed).toList();
+    final refunds =
+        orders
+            .where((o) => o.status == model.OrderStatus.refundRequired)
+            .toList();
+    final all = [...refunds, ...completed];
+    if (all.isEmpty) {
+      return const Center(child: Text('Нет заказов'));
+    }
+    return ListView.builder(
+      itemCount: all.length,
+      itemBuilder: (context, index) {
+        final order = all[index];
+        final isRefund = order.status == model.OrderStatus.refundRequired;
+        return OrderCard(
+          order: order,
+          blockAll: blockAll && !isRefund,
+          blockExceptCall: blockAll && isRefund,
+          onCall: () {
+            if (isRefund && blockAll) {
+              setState(() {
+                refundCallDone = true;
+              });
+            }
+          },
+          onStatusChanged: (newStatus) {
+            handleStatusChanged(order.id, newStatus);
+          },
+          onDeliveryTimeChanged: (orderId, newTime) {
+            handleDeliveryTimeChanged(orderId, newTime);
+          },
+          onClientRefund: (reason) {
+            handleClientRefund(order.id, reason);
+          },
+        );
+      },
     );
   }
 }

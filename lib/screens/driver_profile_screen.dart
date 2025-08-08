@@ -8,6 +8,8 @@ class DriverProfileScreen extends StatefulWidget {
   final int completedOrders;
   final int cancelledOrdersCount;
   final List cancelledOrders;
+  final int refundOrdersCount;
+  final List refundOrders;
 
   const DriverProfileScreen({
     super.key,
@@ -18,6 +20,8 @@ class DriverProfileScreen extends StatefulWidget {
     required this.completedOrders,
     required this.cancelledOrdersCount,
     required this.cancelledOrders,
+    required this.refundOrdersCount,
+    required this.refundOrders,
   });
 
   @override
@@ -196,6 +200,11 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                     'Отменённых заказов: ${widget.cancelledOrdersCount}',
                     style: const TextStyle(fontSize: 18, color: Colors.red),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Возвратов: ${widget.refundOrdersCount}',
+                    style: const TextStyle(fontSize: 18, color: Colors.orange),
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Заказы, которые водитель не выполнил или клиент отказался:',
@@ -228,6 +237,46 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
                                 order.cancelReason != null &&
                                         order.cancelReason!.isNotEmpty
                                     ? 'Причина: ${order.cancelReason}'
+                                    : 'Причина не указана',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Возвратные заказы:',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (widget.refundOrders.isEmpty)
+                    const Text(
+                      'Нет возвратных заказов',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  if (widget.refundOrders.isNotEmpty)
+                    SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        itemCount: widget.refundOrders.length,
+                        itemBuilder: (context, index) {
+                          final order = widget.refundOrders[index];
+                          return Card(
+                            color: Colors.orange[50],
+                            child: ListTile(
+                              title: Text(
+                                order.name,
+                                style: const TextStyle(color: Colors.orange),
+                              ),
+                              subtitle: Text(
+                                order.refundReason != null &&
+                                        order.refundReason!.isNotEmpty
+                                    ? 'Причина: ${order.refundReason}'
                                     : 'Причина не указана',
                               ),
                             ),

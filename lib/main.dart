@@ -37,6 +37,8 @@ class MyApp extends StatelessWidget {
             completedOrders: args?['completedOrders'] ?? 0,
             cancelledOrdersCount: args?['cancelledOrdersCount'] ?? 0,
             cancelledOrders: args?['cancelledOrders'] ?? [],
+            refundOrdersCount: args?['refundOrdersCount'] ?? 0,
+            refundOrders: args?['refundOrders'] ?? [],
           );
         },
       },
