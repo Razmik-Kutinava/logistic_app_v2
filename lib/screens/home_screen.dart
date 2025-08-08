@@ -47,6 +47,20 @@ class _HomeScreenState extends State<HomeScreen> {
       deliveryType: model.DeliveryType.tomorrowDay,
       deliveryDateTime: null,
     ),
+    model.OrderModel(
+      id: '4',
+      name: 'Микроволновка LG',
+      dimensions: '50x40x30 см',
+      weight: 15.0,
+      clientName: 'Анна',
+      clientPhone: '+37477556677',
+      address: 'г. Ереван, ул. Сарьяна, 8',
+      status: model.OrderStatus.refundRequired,
+      deliveryType: model.DeliveryType.urgent,
+      deliveryDateTime: DateTime.now().subtract(Duration(days: 2)),
+      refundRequestDate: DateTime.now().subtract(Duration(hours: 5)),
+      refundReason: 'Товар не подошел по размерам',
+    ),
   ];
 
   void handleQRScan(String qrData) {
@@ -87,10 +101,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void handleClientRefund(String orderId, String reason) {
+    setState(() {
+      final orderIndex = orders.indexWhere((order) => order.id == orderId);
+      if (orderIndex != -1) {
+        orders[orderIndex] = orders[orderIndex].copyWith(
+          status: model.OrderStatus.refundRequired,
+          refundRequestDate: DateTime.now(),
+          refundReason: reason,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasRefunds = orders.any(
+      (order) => order.status == model.OrderStatus.refundRequired,
+    );
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Ваши заказы'),
@@ -130,11 +160,21 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Активные'),
-              Tab(text: 'В работе'),
-              Tab(text: 'Завершённые'),
+              const Tab(text: 'Активные'),
+              const Tab(text: 'В работе'),
+              const Tab(text: 'Завершённые'),
+              Tab(
+                child: Text(
+                  'Возвраты',
+                  style: TextStyle(
+                    color: hasRefunds ? Colors.red : null,
+                    fontWeight:
+                        hasRefunds ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -151,6 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 buildOrderList(model.OrderStatus.active),
                 buildOrderList(model.OrderStatus.inProgress),
                 buildOrderList(model.OrderStatus.completed),
+                buildOrderList(model.OrderStatus.refundRequired),
               ],
             );
           },
@@ -194,6 +235,9 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             onDeliveryTimeChanged: (orderId, newTime) {
               handleDeliveryTimeChanged(orderId, newTime);
+            },
+            onClientRefund: (reason) {
+              handleClientRefund(filteredOrders[index].id, reason);
             },
           ),
     );

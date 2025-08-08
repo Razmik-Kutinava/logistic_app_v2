@@ -1,4 +1,4 @@
-enum OrderStatus { active, inProgress, completed, cancelled }
+enum OrderStatus { active, inProgress, completed, cancelled, refundRequired }
 
 enum DeliveryType {
   urgent, // Срочно
@@ -22,6 +22,9 @@ class OrderModel {
   DeliveryType deliveryType;
   DateTime? deliveryDateTime;
   String? cancelReason;
+  String? trackingNumber;
+  DateTime? refundRequestDate; // Дата запроса на возврат
+  String? refundReason; // Причина возврата
 
   OrderModel({
     required this.id,
@@ -35,6 +38,9 @@ class OrderModel {
     required this.deliveryType,
     this.deliveryDateTime,
     this.cancelReason,
+    this.trackingNumber,
+    this.refundRequestDate,
+    this.refundReason,
   });
 
   OrderModel copyWith({
@@ -49,6 +55,9 @@ class OrderModel {
     DeliveryType? deliveryType,
     DateTime? deliveryDateTime,
     String? cancelReason,
+    String? trackingNumber,
+    DateTime? refundRequestDate,
+    String? refundReason,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -62,6 +71,9 @@ class OrderModel {
       deliveryType: deliveryType ?? this.deliveryType,
       deliveryDateTime: deliveryDateTime ?? this.deliveryDateTime,
       cancelReason: cancelReason ?? this.cancelReason,
+      trackingNumber: trackingNumber ?? this.trackingNumber,
+      refundRequestDate: refundRequestDate ?? this.refundRequestDate,
+      refundReason: refundReason ?? this.refundReason,
     );
   }
 }

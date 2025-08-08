@@ -6,10 +6,12 @@ class OrderCard extends StatefulWidget {
   final OrderModel order;
   final void Function(OrderStatus)? onStatusChanged;
   final void Function(String orderId, DateTime? newTime)? onDeliveryTimeChanged;
+  final void Function(String reason)? onClientRefund;
   const OrderCard({
     required this.order,
     this.onStatusChanged,
     this.onDeliveryTimeChanged,
+    this.onClientRefund,
     super.key,
   });
 
@@ -18,6 +20,33 @@ class OrderCard extends StatefulWidget {
 }
 
 class _OrderCardState extends State<OrderCard> {
+  final TextEditingController _refundPinController = TextEditingController();
+  final String _refundTestPin = '1234';
+  void _handleRefundPin() {
+    final pin = _refundPinController.text.trim();
+    if (pin == _refundTestPin) {
+      setState(() {
+        widget.order.status = OrderStatus.completed;
+      });
+      if (widget.onStatusChanged != null) {
+        widget.onStatusChanged!(OrderStatus.completed);
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Возврат успешно завершён!')),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Неверный PIN!')));
+    }
+  }
+
+  @override
+  void dispose() {
+    _refundPinController.dispose();
+    super.dispose();
+  }
+
   int callCount = 0;
 
   void _callPhone() async {
@@ -67,6 +96,59 @@ class _OrderCardState extends State<OrderCard> {
     );
   }
 
+  void _showRefundDialog() {
+    TextEditingController reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Клиент отказался от заказа'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Укажите причину отказа клиента:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                decoration: const InputDecoration(
+                  hintText: 'Например: не подошел размер, передумал и т.д.',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final reason = reasonController.text.trim();
+                if (reason.isNotEmpty && widget.onClientRefund != null) {
+                  widget.onClientRefund!(reason);
+                }
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text(
+                'Подтвердить отказ',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.day.toString().padLeft(2, '0')}.${dateTime.month.toString().padLeft(2, '0')}.${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
   DeliveryType? selectedDeliveryType;
   DateTime? selectedDateTime;
   String? pin;
@@ -114,6 +196,43 @@ class _OrderCardState extends State<OrderCard> {
                         'https://www.google.com/maps/search/?api=1&query=$query';
                     launchUrl(Uri.parse(url));
                   },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Поле для ввода трек-номера
+            Row(
+              children: [
+                Icon(Icons.local_shipping, color: Colors.grey[700]),
+                const SizedBox(width: 8),
+                const Text(
+                  'Трек-номер:',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: TextEditingController(
+                      text: widget.order.trackingNumber ?? '',
+                    ),
+                    onChanged: (value) {
+                      // Обновляем трек-номер в заказе
+                      if (value.isEmpty) {
+                        widget.order.trackingNumber = null;
+                      } else {
+                        widget.order.trackingNumber = value;
+                      }
+                    },
+                    decoration: const InputDecoration(
+                      hintText: 'Введите трек-номер для отслеживания',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 ),
               ],
             ),
@@ -345,14 +464,14 @@ class _OrderCardState extends State<OrderCard> {
                       isCompleted
                           ? null
                           : (val) async {
-                            final localContext = context;
                             setState(() {
                               selectedDeliveryType = val;
                               widget.order.deliveryType = val!;
                             });
                             if (val == DeliveryType.exactDateTime) {
+                              if (!mounted) return;
                               final date = await showDatePicker(
-                                context: localContext,
+                                context: context,
                                 initialDate: DateTime.now(),
                                 firstDate: DateTime.now(),
                                 lastDate: DateTime.now().add(
@@ -361,8 +480,10 @@ class _OrderCardState extends State<OrderCard> {
                               );
                               if (!mounted) return;
                               if (date != null) {
+                                if (!mounted) return;
                                 final time = await showTimePicker(
-                                  context: localContext,
+                                  // ignore: use_build_context_synchronously
+                                  context: context,
                                   initialTime: TimeOfDay.now(),
                                 );
                                 if (!mounted) return;
@@ -487,6 +608,104 @@ class _OrderCardState extends State<OrderCard> {
                 ],
               ],
             ),
+            // Кнопка отказа клиента для завершенных заказов
+            if (widget.order.status == OrderStatus.completed) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.assignment_return),
+                  label: const Text('Клиент отказался'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(fontSize: 16),
+                  ),
+                  onPressed: () {
+                    _showRefundDialog();
+                  },
+                ),
+              ),
+            ],
+            // Информация о возврате для заказов со статусом refundRequired
+            if (widget.order.status == OrderStatus.refundRequired) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.red.shade700),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Требуется возврат',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (widget.order.refundRequestDate != null) ...[
+                      Text(
+                        'Дата запроса: ${_formatDateTime(widget.order.refundRequestDate!)}',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    if (widget.order.refundReason != null) ...[
+                      Text(
+                        'Причина: ${widget.order.refundReason}',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Text(
+                      'Введите PIN для подтверждения возврата:',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _refundPinController,
+                            keyboardType: TextInputType.number,
+                            obscureText: true,
+                            maxLength: 6,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              counterText: '',
+                              hintText: 'PIN',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.check),
+                          label: const Text('Завершить возврат'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: _handleRefundPin,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
